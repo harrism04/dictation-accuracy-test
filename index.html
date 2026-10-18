@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dictation Accuracy Test</title>
+<meta name="description" content="A typing-test for your voice. Read a passage aloud with any dictation app (OpenWhispr, Wispr Flow, macOS Dictation…) and get a word-level accuracy score. Runs 100% in your browser.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎙️</text></svg>">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<main>
+  <header class="top">
+    <div>
+      <h1>🎙️ Dictation Accuracy Test</h1>
+      <p class="tagline">A typing test for your voice. Read aloud, let your dictation app type, get a score.</p>
+    </div>
+    <button class="icon-btn" id="theme" title="Toggle theme" aria-label="Toggle theme">◐</button>
+  </header>
+
+  <!-- 1. Setup -->
+  <section class="card" aria-labelledby="setup-h">
+    <h2 id="setup-h">1 · Setup</h2>
+    <div class="row">
+      <div class="field">
+        <label for="pick">Passage</label>
+        <select id="pick"></select>
+      </div>
+      <div class="field">
+        <label for="model">Model / app you're testing</label>
+        <input type="text" id="model" list="model-suggestions" placeholder="e.g. Parakeet TDT 0.6B" autocomplete="off">
+        <datalist id="model-suggestions">
+          <option value="Parakeet TDT 0.6B"><option value="Cohere Transcribe"><option value="Orukeet">
+          <option value="Whisper Turbo"><option value="Whisper Large"><option value="Whisper Base">
+          <option value="Nemotron Speech Streaming"><option value="Wispr Flow"><option value="macOS Dictation">
+        </datalist>
+      </div>
+    </div>
+    <details style="margin-top:12px;">
+      <summary class="label" style="cursor:pointer; display:list-item;">Add your own passage</summary>
+      <div style="margin-top:10px;">
+        <input type="text" id="custom-name" placeholder="Name (e.g. My stand-up update)" style="margin-bottom:8px;">
+        <textarea id="custom-text" placeholder="Paste text you actually say day to day…" style="min-height:90px;"></textarea>
+        <div class="btns" style="margin-top:8px;">
+          <button class="ghost small" id="custom-add">Save passage</button>
+          <button class="ghost small" id="custom-del" hidden>Delete this custom passage</button>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <!-- 2. Read -->
+  <section class="card" aria-labelledby="read-h">
+    <h2 id="read-h">2 · Read this aloud</h2>
+    <p class="passage" id="passage"></p>
+    <div class="passage-meta">
+      <span id="passage-info"></span>
+      <span class="btns">
+        <button class="ghost small" id="prev" aria-label="Previous passage">← Prev</button>
+        <button class="ghost small" id="random">🎲 Random</button>
+        <button class="ghost small" id="next" aria-label="Next passage">Next →</button>
+      </span>
+    </div>
+  </section>
+
+  <!-- 3. Dictate -->
+  <section class="card" aria-labelledby="dictate-h">
+    <h2 id="dictate-h">3 · Dictate</h2>
+    <div class="status" id="status" data-state="idle" aria-live="polite">
+      <span class="dot"></span><span id="status-text">Press <b>Start take</b>, then hold your dictation hotkey and read.</span>
+      <span class="timer" id="timer">0.0s</span>
+    </div>
+    <label for="typed" class="visually-hidden">Dictation output</label>
+    <textarea id="typed" placeholder="Your dictation lands here…" spellcheck="false" autocorrect="off" autocapitalize="off"></textarea>
+    <div class="btns" style="margin-top:12px;">
+      <button class="primary" id="start">● Start take</button>
+      <button class="ghost" id="score">Score <kbd class="hide-sm">⌘↵</kbd></button>
+      <button class="ghost" id="reset">Reset <kbd class="hide-sm">Esc</kbd></button>
+    </div>
+    <div class="options">
+      <label><input type="checkbox" id="auto" checked> Auto-score when text lands</label>
+      <label><input type="checkbox" id="opt-numbers" checked> “42” = “forty two”</label>
+      <label><input type="checkbox" id="opt-case" checked> Ignore case</label>
+      <label><input type="checkbox" id="opt-punct" checked> Ignore punctuation</label>
+    </div>
+  </section>
+
+  <!-- 4. Result -->
+  <section class="card" id="result" hidden aria-labelledby="result-h">
+    <h2 id="result-h">Result</h2>
+    <div class="stats">
+      <div class="stat hero"><b id="r-acc">–</b><span>Accuracy · stutter-forgiving</span></div>
+      <div class="stat"><b id="r-strict">–</b><span>Accuracy · strict</span></div>
+      <div class="stat"><b id="r-sub">–</b><span>Wrong words</span></div>
+      <div class="stat"><b id="r-del">–</b><span>Missed words</span></div>
+      <div class="stat"><b id="r-ins">–</b><span>Extra words</span></div>
+      <div class="stat"><b id="r-wpm">–</b><span>Words / min · incl. processing</span></div>
+    </div>
+    <p class="grade" id="r-grade"></p>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-forgiving" aria-selected="true">Stutter-forgiving</button>
+      <button role="tab" id="tab-strict" aria-selected="false">Strict</button>
+    </div>
+    <div class="legend">
+      <span class="w ok">correct</span><span class="w sub">wrong</span><span class="w del">missed</span><span class="w ins">extra</span>
+    </div>
+    <div class="diff" id="diff"></div>
+  </section>
+
+  <!-- 5. Leaderboard -->
+  <section class="card" aria-labelledby="board-h">
+    <h2 id="board-h">Your leaderboard</h2>
+    <div class="row" style="margin-bottom:10px;">
+      <div class="field" style="flex:0 1 260px;">
+        <label for="board-filter">Passages</label>
+        <select id="board-filter"><option value="">All passages</option><option value="__current">Current passage only</option></select>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="board">
+        <thead><tr><th></th><th>Model</th><th class="num">Takes</th><th>Avg accuracy</th><th class="num hide-sm">Strict</th><th class="num hide-sm">Best</th><th class="num hide-sm">WPM</th></tr></thead>
+        <tbody id="board"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="trouble-h">
+    <h2 id="trouble-h">Trouble words</h2>
+    <p class="empty" id="trouble-empty">Words your dictation keeps getting wrong will show up here.</p>
+    <div class="chips" id="trouble"></div>
+  </section>
+
+  <!-- 6. History -->
+  <section class="card" aria-labelledby="hist-h">
+    <h2 id="hist-h">History</h2>
+    <div class="table-wrap">
+      <table class="board">
+        <thead><tr><th>When</th><th>Model</th><th>Passage</th><th class="num">Accuracy</th><th class="num hide-sm">Strict</th><th></th></tr></thead>
+        <tbody id="hist"></tbody>
+      </table>
+    </div>
+    <div class="btns" style="margin-top:12px;">
+      <button class="ghost small" id="export-json">Export JSON</button>
+      <button class="ghost small" id="export-csv">Export CSV</button>
+      <button class="ghost small" id="import">Import JSON</button>
+      <input type="file" id="import-file" accept="application/json,.json" hidden>
+      <button class="ghost small" id="wipe" style="margin-left:auto;">Clear history</button>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="tips-h">
+    <h2 id="tips-h">Getting a fair result</h2>
+    <ul class="tips">
+      <li><b>Turn off AI cleanup / rewriting</b> in your dictation app to measure raw transcription. Turn it back on to measure what you'd actually get.</li>
+      <li>Do <b>3+ takes per model</b> on the same passage. One take is noisy.</li>
+      <li>Keep mic, distance and room the same between models.</li>
+      <li><b>Stutter-forgiving</b> removes fillers (um, uh), repeated words and part-word starts (“p-p-picked”) before scoring, so an engine isn’t punished for faithfully writing a stutter. <b>Strict</b> counts everything.</li>
+      <li>Everything is stored only in this browser. Nothing is uploaded.</li>
+    </ul>
+  </section>
+
+  <footer>
+    Open source · <a href="https://github.com/harrism04/dictation-accuracy-test">GitHub</a> · Runs entirely in your browser
+  </footer>
+</main>
+
+<script src="js/scoring.js"></script>
+<script src="js/passages.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

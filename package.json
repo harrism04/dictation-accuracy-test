@@ -1,0 +1,14 @@
+{
+  "name": "dictation-accuracy-test",
+  "version": "1.0.0",
+  "description": "A typing test for your voice: measure how accurately any dictation app transcribes you.",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "test": "node --test",
+    "e2e": "node tests/e2e.mjs",
+    "screenshot": "node tests/e2e.mjs --screenshot"
+  },
+  "engines": { "node": ">=22" }
+}
